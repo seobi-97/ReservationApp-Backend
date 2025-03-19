@@ -106,12 +106,20 @@ router.post('/login', async (req, res) => {
 
 router.post('/token', async (req, res) => {
     try {
+        const { user_id } = req.body;
         // 쿠키에서 리프레시 토큰을 가져옴
         const refreshToken = req.cookies.refreshToken;
 
         if (!refreshToken) {
             return res.status(401).json({
                 error: '리프레시 토큰이 없습니다',
+            });
+        }
+        // 토큰 존재 여부 확인
+        const invalidToken = await pool.query('SELECT * FROM tokens WHERE user_id = $1 AND refresh_token = $2', [user_id, refreshToken]);
+        if (invalidToken.rows.length === 0) {
+            return res.status(401).json({
+                error: '유효하지 않은 리프레시 토큰입니다',
             });
         }
 
@@ -127,6 +135,10 @@ router.post('/token', async (req, res) => {
 
         // 새로운 액세스 토큰 발급
         const accessToken = jwt.sign({ id: user.id }, process.env.JWT_ACCESSTOKEN, { expiresIn: '1h' });
+        // 새로운 리프레시 토큰 발급
+        const newRefreshToken = jwt.sign({ id: user.id }, process.env.JWT_REFRESHTOKEN, { expiresIn: '7d' });
+
+        await pool.query('UPDATE tokens SET refresh_token = $1, expires_at = $2 WHERE user_id = $3', [newRefreshToken, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), user_id]);
 
         // 쿠키에 새 액세스 토큰 설정
         res.cookie('accessToken', accessToken, {
@@ -134,10 +146,17 @@ router.post('/token', async (req, res) => {
             secure: process.env.NODE_ENV !== 'development',
             maxAge: 1 * 60 * 60 * 1000,
         });
+        // 쿠키에 새 리프레시 토큰 설정
+        res.cookie('refreshToken', newRefreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV !== 'development',
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
 
         res.json({
-            message: '새로운 액세스 토큰이 발급되었습니다',
+            message: '토큰이 갱신되었습니다',
             accessToken,
+            refreshToken: newRefreshToken,
         });
     } catch (error) {
         if (error.name === 'JsonWebTokenError') {
