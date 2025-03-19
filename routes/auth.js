@@ -72,11 +72,21 @@ router.post('/login', async (req, res) => {
             expiresIn: '7d',
         });
 
-        await pool.query('INSERT INTO tokens (user_id, refresh_token, expires_at) VALUES ($1, $2, $3)', [
-            user.rows[0].id,
-            refreshToken,
-            new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        ]);
+        // 토큰 존재 여부 확인
+        const invalidToken = await pool.query('SELECT * FROM tokens WHERE user_id = $1', [user.rows[0].id]);
+        if (invalidToken.rows.length > 0) {
+            await pool.query('UPDATE tokens SET refresh_token = $1, expires_at = $2 WHERE user_id = $3', [
+                refreshToken,
+                new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                user.rows[0].id,
+            ]);
+        } else {
+            await pool.query('INSERT INTO tokens (user_id, refresh_token, expires_at) VALUES ($1, $2, $3)', [
+                user.rows[0].id,
+                refreshToken,
+                new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            ]);
+        }
 
         res.cookie('accessToken', accessToken, {
             httpOnly: true,
