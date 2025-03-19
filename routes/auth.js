@@ -172,9 +172,34 @@ router.post('/token', async (req, res) => {
 });
 
 router.post('/logout', async (req, res) => {
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
-    res.json({ message: 'Logged out' });
+    try {
+        const { user_id } = req.body;
+        const refreshToken = req.cookies.refreshToken;
+
+        // 토큰 존재 여부 확인
+        const invalidToken = await pool.query('SELECT * FROM tokens WHERE user_id = $1 AND refresh_token = $2', [user_id, refreshToken]);
+        if (invalidToken.rows.length === 0) {
+            return res.status(401).json({
+                error: '유효하지 않은 리프레시 토큰입니다',
+            });
+        }
+
+        await pool.query('DELETE FROM tokens WHERE user_id = $1 AND refresh_token = $2', [user_id, refreshToken]);
+
+        res.clearCookie('accessToken');
+        res.clearCookie('refreshToken');
+        res.json({ message: '로그아웃 되었습니다' });
+    } catch (error) {
+        res.status(500).json({ error: '로그아웃 중 오류가 발생했습니다' });
+    }
+});
+
+router.put('/user', async (req, res) => {
+    const { name, email, password } = req.body;
+    const { id } = req.user;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await pool.query('UPDATE users SET name = $1, email = $2, password = $3 WHERE id = $4', [name, email, hashedPassword, id]);
+    res.json({ user: user.rows[0] });
 });
 
 export default router;
