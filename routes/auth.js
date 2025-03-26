@@ -90,12 +90,12 @@ router.post('/login', async (req, res) => {
 
         res.cookie('accessToken', accessToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV !== 'development',
+            secure: process.env.NODE_ENV !== 'production',
             maxAge: 1 * 60 * 60 * 1000,
         });
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV !== 'development',
+            secure: process.env.NODE_ENV !== 'production',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
         res.json({ user: user.rows[0], accessToken, refreshToken });
@@ -143,13 +143,13 @@ router.post('/token', async (req, res) => {
         // 쿠키에 새 액세스 토큰 설정
         res.cookie('accessToken', accessToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV !== 'development',
+            secure: process.env.NODE_ENV !== 'production',
             maxAge: 1 * 60 * 60 * 1000,
         });
         // 쿠키에 새 리프레시 토큰 설정
         res.cookie('refreshToken', newRefreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV !== 'development',
+            secure: process.env.NODE_ENV !== 'production',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
@@ -175,7 +175,7 @@ router.post('/logout', async (req, res) => {
     try {
         const { user_id } = req.body;
         const refreshToken = req.cookies.refreshToken;
-
+        console.log(user_id, refreshToken);
         // 토큰 존재 여부 확인
         const invalidToken = await pool.query('SELECT * FROM tokens WHERE user_id = $1 AND refresh_token = $2', [user_id, refreshToken]);
         if (invalidToken.rows.length === 0) {
