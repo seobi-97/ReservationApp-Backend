@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.post('/signup', async (req, res) => {
     const { name, email, password } = req.body;
-
+    console.log(name, email, password);
     // 이메일 정규식
     if (!regex.validateEmail(email)) {
         return res.status(400).json({ error: 'Invalid email format' });
@@ -42,7 +42,7 @@ router.post('/signup', async (req, res) => {
 
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
-
+    console.log(email, password);
     // 이메일 정규식
     if (!regex.validateEmail(email)) {
         return res.status(400).json({ error: 'Invalid email format' });
@@ -92,11 +92,15 @@ router.post('/login', async (req, res) => {
             httpOnly: true,
             secure: process.env.NODE_ENV !== 'production',
             maxAge: 1 * 60 * 60 * 1000,
+            sameSite: 'lax',
+            path: '/',
         });
         res.cookie('refreshToken', refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV !== 'production',
             maxAge: 7 * 24 * 60 * 60 * 1000,
+            sameSite: 'lax',
+            path: '/',
         });
         res.json({ user: user.rows[0], accessToken, refreshToken });
     } catch (error) {
@@ -145,12 +149,16 @@ router.post('/token', async (req, res) => {
             httpOnly: true,
             secure: process.env.NODE_ENV !== 'production',
             maxAge: 1 * 60 * 60 * 1000,
+            sameSite: 'lax',
+            path: '/',
         });
         // 쿠키에 새 리프레시 토큰 설정
         res.cookie('refreshToken', newRefreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV !== 'production',
             maxAge: 7 * 24 * 60 * 60 * 1000,
+            sameSite: 'lax',
+            path: '/',
         });
 
         res.json({
@@ -174,8 +182,11 @@ router.post('/token', async (req, res) => {
 router.post('/logout', async (req, res) => {
     try {
         const { user_id } = req.body;
+        console.log('전체 쿠키:', req.cookies);
+        console.log('요청 헤더:', req.headers);
         const refreshToken = req.cookies.refreshToken;
-        console.log(user_id, refreshToken);
+        console.log('user_id:', user_id);
+        console.log('refreshToken:', refreshToken);
         // 토큰 존재 여부 확인
         const invalidToken = await pool.query('SELECT * FROM tokens WHERE user_id = $1 AND refresh_token = $2', [user_id, refreshToken]);
         if (invalidToken.rows.length === 0) {
