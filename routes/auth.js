@@ -32,7 +32,16 @@ router.post('/signup', async (req, res) => {
 
         // 비밀번호 암호화
         const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = await pool.query('INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING *', [name, email, hashedPassword]);
+
+        // 유저 생성
+        const newUser = await pool.query('INSERT INTO users (name, email, password, role, created_at, deleted_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *', [
+            name,
+            email,
+            hashedPassword,
+            'user',
+            new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })),
+            null,
+        ]);
 
         res.json({ user: newUser.rows[0] });
     } catch (error) {
@@ -81,10 +90,11 @@ router.post('/login', async (req, res) => {
                 user.rows[0].id,
             ]);
         } else {
-            await pool.query('INSERT INTO tokens (user_id, refresh_token, expires_at) VALUES ($1, $2, $3)', [
+            await pool.query('INSERT INTO tokens (user_id, refresh_token, expires_at, deleted_at) VALUES ($1, $2, $3, $4)', [
                 user.rows[0].id,
                 refreshToken,
                 new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                null,
             ]);
         }
 
@@ -142,7 +152,11 @@ router.post('/token', async (req, res) => {
         // 새로운 리프레시 토큰 발급
         const newRefreshToken = jwt.sign({ id: user.id }, process.env.JWT_REFRESHTOKEN, { expiresIn: '7d' });
 
-        await pool.query('UPDATE tokens SET refresh_token = $1, expires_at = $2 WHERE user_id = $3', [newRefreshToken, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), user_id]);
+        await pool.query('UPDATE tokens SET refresh_token = $1, expires_at = $2 WHERE user_id = $3', [
+            newRefreshToken,
+            new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' }) + 7 * 24 * 60 * 60 * 1000 + 9 * 60 * 60 * 1000),
+            user_id,
+        ]);
 
         // 쿠키에 새 액세스 토큰 설정
         res.cookie('accessToken', accessToken, {
@@ -195,7 +209,11 @@ router.post('/logout', async (req, res) => {
             });
         }
 
-        await pool.query('DELETE FROM tokens WHERE user_id = $1 AND refresh_token = $2', [user_id, refreshToken]);
+        await pool.query('UPDATE tokens SET deleted_at = $1 WHERE user_id = $2 AND refresh_token = $3', [
+            new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })),
+            user_id,
+            refreshToken,
+        ]);
 
         res.clearCookie('accessToken');
         res.clearCookie('refreshToken');
@@ -205,11 +223,19 @@ router.post('/logout', async (req, res) => {
     }
 });
 
+// 유저 정보 수정
 router.put('/user', async (req, res) => {
     const { name, email, password } = req.body;
     const { id } = req.user;
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await pool.query('UPDATE users SET name = $1, email = $2, password = $3 WHERE id = $4', [name, email, hashedPassword, id]);
+    res.json({ user: user.rows[0] });
+});
+
+// 유저 정보 삭제
+router.delete('/user', async (req, res) => {
+    const { id } = req.user;
+    const user = await pool.query('UPDATE users SET deleted_at = $1 WHERE id = $2', [new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })), id]);
     res.json({ user: user.rows[0] });
 });
 
