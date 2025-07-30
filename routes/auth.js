@@ -43,7 +43,7 @@ router.post('/signup', async (req, res) => {
             null,
         ]);
 
-        res.json({ user: newUser.rows[0] });
+        res.status(200).json({ user: newUser.rows[0] });
     } catch (error) {
         res.status(500).json({ error: 'Signup failed' });
     }
@@ -112,7 +112,7 @@ router.post('/login', async (req, res) => {
             sameSite: 'lax',
             path: '/',
         });
-        res.json({ user: user.rows[0], accessToken, refreshToken });
+        res.status(200).json({ user: user.rows[0], accessToken, refreshToken });
     } catch (error) {
         res.status(500).json({ error: 'Login failed' });
     }
@@ -121,8 +121,17 @@ router.post('/login', async (req, res) => {
 router.post('/token', async (req, res) => {
     try {
         const { user_id } = req.body;
-        // 쿠키에서 리프레시 토큰을 가져옴
-        const refreshToken = req.cookies.refreshToken;
+        
+        // 쿠키 또는 Authorization 헤더에서 리프레시 토큰을 가져옴
+        let refreshToken = req.cookies.refreshToken;
+        
+        if (!refreshToken && req.headers.authorization) {
+            // Authorization 헤더에서 Bearer 토큰 추출
+            const authHeader = req.headers.authorization;
+            if (authHeader.startsWith('Bearer ')) {
+                refreshToken = authHeader.substring(7);
+            }
+        }
 
         if (!refreshToken) {
             return res.status(401).json({
@@ -175,7 +184,7 @@ router.post('/token', async (req, res) => {
             path: '/',
         });
 
-        res.json({
+        res.status(200).json({
             message: '토큰이 갱신되었습니다',
             accessToken,
             refreshToken: newRefreshToken,
@@ -198,11 +207,30 @@ router.post('/logout', async (req, res) => {
         const { user_id } = req.body;
         console.log('전체 쿠키:', req.cookies);
         console.log('요청 헤더:', req.headers);
-        const refreshToken = req.cookies.refreshToken;
+        
+        // 쿠키 또는 Authorization 헤더에서 리프레시 토큰을 가져옴
+        let refreshToken = req.cookies.refreshToken;
+        
+        if (!refreshToken && req.headers.authorization) {
+            // Authorization 헤더에서 Bearer 토큰 추출
+            const authHeader = req.headers.authorization;
+            if (authHeader.startsWith('Bearer ')) {
+                refreshToken = authHeader.substring(7);
+            }
+        }
+        
         console.log('user_id:', user_id);
         console.log('refreshToken:', refreshToken);
+        
+        if (!refreshToken) {
+            return res.status(401).json({
+                error: '리프레시 토큰이 없습니다',
+            });
+        }
+        
         // 토큰 존재 여부 확인
         const invalidToken = await pool.query('SELECT * FROM tokens WHERE user_id = $1 AND refresh_token = $2', [user_id, refreshToken]);
+        console.log('invalidToken:', invalidToken);
         if (invalidToken.rows.length === 0) {
             return res.status(401).json({
                 error: '유효하지 않은 리프레시 토큰입니다',
@@ -217,7 +245,7 @@ router.post('/logout', async (req, res) => {
 
         res.clearCookie('accessToken');
         res.clearCookie('refreshToken');
-        res.json({ message: '로그아웃 되었습니다' });
+        res.status(200).json({ message: '로그아웃 되었습니다' });
     } catch (error) {
         res.status(500).json({ error: '로그아웃 중 오류가 발생했습니다' });
     }
@@ -229,14 +257,14 @@ router.put('/user', async (req, res) => {
     const { id } = req.user;
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await pool.query('UPDATE users SET name = $1, email = $2, password = $3 WHERE id = $4', [name, email, hashedPassword, id]);
-    res.json({ user: user.rows[0] });
+    res.status(200).json({ user: user.rows[0] });
 });
 
 // 유저 정보 삭제
 router.delete('/user', async (req, res) => {
     const { id } = req.user;
     const user = await pool.query('UPDATE users SET deleted_at = $1 WHERE id = $2', [new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Seoul' })), id]);
-    res.json({ user: user.rows[0] });
+    res.status(200).json({ user: user.rows[0] });
 });
 
 export default router;
