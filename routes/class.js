@@ -9,13 +9,16 @@ router.get('/list', async (req, res) => {
         const { rows } = await pool.query(`
             SELECT 
                 c.*,
-                json_agg(
-                    json_build_object(
-                        'participant_id', p.id,
-                        'user_id', p.user_id,
-                        'status', p.status,
-                        'reserved_at', p.reserved_at
-                    )
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'participant_id', p.id,
+                            'user_id', p.user_id,
+                            'status', p.status,
+                            'reserved_at', p.reserved_at
+                        )
+                    ) FILTER (WHERE p.id IS NOT NULL), 
+                    '[]'::json
                 ) as participants
             FROM classes c
             LEFT JOIN participants p ON c.id = p.class_id
@@ -23,13 +26,7 @@ router.get('/list', async (req, res) => {
             ORDER BY c.start_date DESC
         `);
 
-        // participants가 null인 경우 빈 배열로 변환
-        const formattedRows = rows.map((row) => ({
-            ...row,
-            participants: row.participants[0] === null ? [] : row.participants,
-        }));
-
-        res.json(formattedRows);
+        res.json(rows);
     } catch (error) {
         console.error('Error fetching classes:', error);
         res.status(500).json({ error: 'Failed to fetch classes' });
@@ -44,13 +41,16 @@ router.get('/list/:id', async (req, res) => {
             `
             SELECT 
                 c.*,
-                json_agg(
-                    json_build_object(
-                        'participant_id', p.id,
-                        'user_id', p.user_id,
-                        'status', p.status,
-                        'reserved_at', p.reserved_at
-                    )
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'participant_id', p.id,
+                            'user_id', p.user_id,
+                            'status', p.status,
+                            'reserved_at', p.reserved_at
+                        )
+                    ) FILTER (WHERE p.id IS NOT NULL), 
+                    '[]'::json
                 ) as participants
             FROM classes c
             LEFT JOIN participants p ON c.id = p.class_id
@@ -64,13 +64,7 @@ router.get('/list/:id', async (req, res) => {
             return res.status(404).json({ error: 'Class not found' });
         }
 
-        // participants가 null인 경우 빈 배열로 변환
-        const formattedRow = {
-            ...rows[0],
-            participants: rows[0].participants[0] === null ? [] : rows[0].participants,
-        };
-
-        res.json(formattedRow);
+        res.json(rows[0]);
     } catch (error) {
         console.error('Error fetching class:', error);
         res.status(500).json({ error: 'Failed to fetch class' });
