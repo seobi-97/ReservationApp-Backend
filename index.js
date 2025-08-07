@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/auth.js';
 import classRoutes from './routes/class.js';
+import reserveRoutes from './routes/reserve.js';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 dotenv.config();
@@ -27,6 +28,7 @@ app.use(
 app.use(cookieParser());
 app.use('/auth', authRoutes);
 app.use('/class', classRoutes);
+app.use('/reserve', reserveRoutes);
 
 const PORT = process.env.PORT || 5500;
 app.listen(PORT, () => {
