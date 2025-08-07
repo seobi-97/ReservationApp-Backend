@@ -3,12 +3,15 @@ import pool from '../db.js';
 
 const router = express.Router();
 
-// 모든 수업 예약 조회
+// 모든 수업 예약 조회 (날짜 필터링 지원)
 router.get('/list', async (req, res) => {
     try {
-        const { rows } = await pool.query(`
+        const { date, start_date, end_date } = req.query;
+        
+        let query = `
             SELECT 
                 c.*,
+                u.name as creator_name,
                 COALESCE(
                     json_agg(
                         json_build_object(
@@ -21,11 +24,42 @@ router.get('/list', async (req, res) => {
                     '[]'::json
                 ) as participants
             FROM classes c
+            LEFT JOIN users u ON c.creator_id = u.id
             LEFT JOIN participants p ON c.id = p.class_id
-            GROUP BY c.id
+        `;
+        
+        const queryParams = [];
+        const whereConditions = [];
+        
+        // 특정 날짜 조회
+        if (date) {
+            whereConditions.push(`DATE(c.start_date) = $${queryParams.length + 1}`);
+            queryParams.push(date);
+        }
+        
+        // 날짜 범위 조회
+        if (start_date && end_date) {
+            whereConditions.push(`DATE(c.start_date) BETWEEN $${queryParams.length + 1} AND $${queryParams.length + 2}`);
+            queryParams.push(start_date, end_date);
+        } else if (start_date) {
+            whereConditions.push(`DATE(c.start_date) >= $${queryParams.length + 1}`);
+            queryParams.push(start_date);
+        } else if (end_date) {
+            whereConditions.push(`DATE(c.start_date) <= $${queryParams.length + 1}`);
+            queryParams.push(end_date);
+        }
+        
+        // WHERE 절 추가
+        if (whereConditions.length > 0) {
+            query += ` WHERE ${whereConditions.join(' AND ')}`;
+        }
+        
+        query += `
+            GROUP BY c.id, u.name
             ORDER BY c.start_date DESC
-        `);
+        `;
 
+        const { rows } = await pool.query(query, queryParams);
         res.json(rows);
     } catch (error) {
         console.error('Error fetching classes:', error);
@@ -41,6 +75,7 @@ router.get('/list/:id', async (req, res) => {
             `
             SELECT 
                 c.*,
+                u.name as creator_name,
                 COALESCE(
                     json_agg(
                         json_build_object(
@@ -53,9 +88,10 @@ router.get('/list/:id', async (req, res) => {
                     '[]'::json
                 ) as participants
             FROM classes c
+            LEFT JOIN users u ON c.creator_id = u.id
             LEFT JOIN participants p ON c.id = p.class_id
             WHERE c.id = $1
-            GROUP BY c.id
+            GROUP BY c.id, u.name
         `,
             [id]
         );
